@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Song Bracket</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #f0efe8;
+    --muted: rgba(240,239,232,0.45);
+    --hint: rgba(240,239,232,0.25);
+    --green: #1DB954;
+    --green-dim: rgba(29,185,84,0.15);
+    --accent: #c8b97a;
+    --accent-dim: rgba(200,185,122,0.12);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 2rem 2.5rem 1.5rem;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  header .tagline {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── Setup ── */
+  #setup-screen { padding: 2.5rem; max-width: 600px; }
+
+  .auth-box {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .auth-box h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 0.5rem;
+  }
+  .auth-box p {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 1.75rem;
+    max-width: 340px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .spotify-btn {
+    background: var(--green);
+    color: #000;
+    border: none;
+    padding: 11px 28px;
+    border-radius: 50px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: opacity 0.15s;
+  }
+  .spotify-btn:hover { opacity: 0.88; }
+  .demo-link {
+    display: block;
+    margin-top: 1rem;
+    font-size: 12px;
+    color: var(--hint);
+  }
+  .demo-link a { color: var(--accent); text-decoration: none; }
+  .demo-link a:hover { text-decoration: underline; }
+
+  #search-section { display: none; }
+  .search-row { display: flex; gap: 8px; margin-bottom: 1rem; }
+  .search-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-row input::placeholder { color: var(--hint); }
+  .search-row input:focus { border-color: rgba(255,255,255,0.3); }
+  .search-row button {
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 18px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .search-row button:hover { background: rgba(255,255,255,0.08); }
+
+  .artist-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 1rem; }
+  .artist-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .artist-card:hover { border-color: var(--border2); background: var(--surface2); }
+  .artist-img {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--surface2);
+    flex-shrink: 0;
+  }
+  .artist-name { font-size: 13px; font-weight: 500; }
+  .artist-genre { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  #status-msg { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  #error-msg { font-size: 13px; color: #e05c5c; margin-top: 8px; display: none; }
+
+  /* ── Bracket ── */
+  #bracket-screen { padding: 1.5rem 2rem; }
+  .bracket-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .bracket-header h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    font-weight: 400;
+  }
+  .back-btn {
+    background: none;
+    border: 0.5px solid var(--border2);
+    border-radius: 8px;
+    padding: 6px 12px;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .back-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
+
+  /* Champion card */
+  #champion-area { display: none; }
+  .champion-card {
+    background: linear-gradient(135deg, rgba(200,185,122,0.12), rgba(200,185,122,0.04));
+    border: 0.5px solid rgba(200,185,122,0.35);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    max-width: 360px;
+    margin: 0 auto 2.5rem;
+  }
+  .champion-card .trophy { font-size: 36px; margin-bottom: 0.75rem; }
+  .champion-card .champ-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem; }
+  .champion-card .champ-name { font-family: 'Instrument Serif', serif; font-size: 24px; color: var(--text); }
+  .champion-card .champ-artist { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* Bracket layout */
+  .bracket-wrap {
+    display: flex;
+    gap: 0;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-bottom: 1.5rem;
+    -webkit-overflow-scrolling: touch;
+  }
+  .round-col { display: flex; flex-direction: column; min-width: 168px; flex-shrink: 0; }
+  .round-title {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--hint);
+    text-align: center;
+    padding: 0 8px 10px;
+  }
+  .round-matches { display: flex; flex-direction: column; }
+  .match-cell {
+    display: flex;
+    align-items: center;
+    padding: 4px 6px;
+  }
+  .match-block { width: 150px; }
+
+  .song-slot {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    padding: 8px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    line-height: 1.3;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    transition: background 0.12s, border-color 0.12s;
+    position: relative;
+    overflow: hidden;
+  }
+  .song-slot:first-child { border-radius: 6px 6px 0 0; border-bottom-color: transparent; }
+  .song-slot + .song-slot { border-radius: 0 0 6px 6px; }
+  .song-slot:not(.empty):not(.loser):not([data-decided]):hover {
+    background: var(--surface2);
+    border-color: var(--border2);
+  }
+  .song-slot.winner {
+    background: var(--green-dim);
+    border-color: rgba(29,185,84,0.4) !important;
+    color: #1DB954;
+    font-weight: 500;
+  }
+  .song-slot.loser { opacity: 0.3; cursor: default; }
+  .song-slot.empty { color: var(--hint); cursor: default; font-style: italic; font-size: 11px; }
+  .song-slot .seed {
+    font-size: 9px;
+    color: var(--hint);
+    margin-right: 7px;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: right;
+  }
+  .song-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 116px;
+    display: inline-block;
+  }
+
+  /* connector lines between rounds */
+  .connector-col {
+    display: flex;
+    flex-direction: column;
+    width: 20px;
+    flex-shrink: 0;
+  }
+  .connector-pair {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: center;
+    position: relative;
+  }
+  .connector-pair svg { width: 20px; }
+
+  @media (max-width: 600px) {
+    header { padding: 1.25rem 1.25rem 1rem; }
+    header h1 { font-size: 22px; }
+    #setup-screen { padding: 1.25rem; }
+    #bracket-screen { padding: 1rem; }
+    .round-col { min-width: 148px; }
+    .match-block { width: 132px; }
+    .song-name { max-width: 96px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Song Bracket</h1>
+  <span class="tagline">tournament bracket for any artist</span>
+</header>
+
+<div id="setup-screen" class="screen active">
+  <div id="auth-section">
+    <div class="auth-box">
+      <h2>Connect Spotify</h2>
+      <p>Sign in to fetch any artist's top songs and build a tournament bracket. No account data is accessed.</p>
+      <button class="spotify-btn" onclick="connectSpotify()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+        Sign in with Spotify
+      </button>
+      <div class="demo-link">No Spotify? <a href="#" onclick="loadDemo(); return false;">Try a demo bracket</a> with The Beatles.</div>
+    </div>
+  </div>
+
+  <div id="search-section">
+    <div class="search-row">
+      <input type="text" id="artist-input" placeholder="Search for an artist..." onkeydown="if(event.key==='Enter') searchArtists()" />
+      <button onclick="searchArtists()">Search</button>
+    </div>
+    <div id="error-msg"></div>
+    <div id="status-msg"></div>
+    <div id="artist-results" class="artist-results"></div>
+  </div>
+</div>
+
+<div id="bracket-screen" class="screen">
+  <div class="bracket-header">
+    <button class="back-btn" onclick="resetApp()">&#8592; New bracket</button>
+    <h2 id="bracket-title"></h2>
+  </div>
+  <div id="champion-area"></div>
+  <div id="bracket-wrap" class="bracket-wrap"></div>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
+const REDIRECT_URI = window.location.origin + window.location.pathname;
+// ───────────────────────────────────────────────────────
+
+let accessToken = null;
+let bracket = [];
+let artistName = '';
+
+// ── PKCE helpers ──
+function base64urlEncode(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+async function generateCodeChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return base64urlEncode(digest);
+}
+function generateVerifier() {
+  const arr = new Uint8Array(64);
+  crypto.getRandomValues(arr);
+  return base64urlEncode(arr);
+}
+
+async function connectSpotify() {
+  const verifier = generateVerifier();
+  const challenge = await generateCodeChallenge(verifier);
+  sessionStorage.setItem('pkce_verifier', verifier);
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: REDIRECT_URI,
+    scope: '',
+    code_challenge_method: 'S256',
+    code_challenge: challenge
+  });
+  window.location.href = 'https://accounts.spotify.com/authorize?' + params;
+}
+
+async function checkAuth() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const errorParam = params.get('error');
+  if (errorParam) {
+    window.history.replaceState(null, '', window.location.pathname);
+    setError('Spotify login failed: ' + errorParam);
+    return;
+  }
+  if (code) {
+    window.history.replaceState(null, '', window.location.pathname);
+    setStatus('Signing in...');
+    const verifier = sessionStorage.getItem('pkce_verifier');
+    if (!verifier) {
+      setError('Session expired — please click Sign in with Spotify again.');
+      return;
+    }
+    try {
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: REDIRECT_URI,
+          client_id: CLIENT_ID,
+          code_verifier: verifier
+        })
+      });
+      const data = await res.json();
+      if (data.access_token) {
+        accessToken = data.access_token;
+        sessionStorage.removeItem('pkce_verifier');
+        setStatus('');
+        showSearch();
+      } else {
+        const reason = data.error_description || data.error || 'unknown error';
+        setError('Sign-in failed: ' + reason + ' | Redirect URI used: ' + REDIRECT_URI);
+      }
+    } catch(e) {
+      setError('Network error: ' + e.message);
+    }
+  }
+}
+
+function showSearch() {
+  document.getElementById('auth-section').style.display = 'none';
+  document.getElementById('search-section').style.display = 'block';
+  setTimeout(() => document.getElementById('artist-input').focus(), 50);
+}
+
+async function searchArtists() {
+  const q = document.getElementById('artist-input').value.trim();
+  if (!q) return;
+  setStatus('Searching...');
+  setError('');
+  document.getElementById('artist-results').innerHTML = '';
+  try {
+    const res = await fetch('https://api.spotify.com/v1/search?q=' + encodeURIComponent(q) + '&type=artist&limit=6', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    setStatus('');
+    renderArtists(data.artists.items);
+  } catch(e) {
+    setError('Could not reach Spotify. Try reloading to re-authenticate.');
+    setStatus('');
+  }
+}
+
+function renderArtists(artists) {
+  const c = document.getElementById('artist-results');
+  if (!artists.length) { c.innerHTML = '<p style="color:var(--muted);font-size:14px;">No artists found.</p>'; return; }
+  c.innerHTML = artists.map(a => `
+    <div class="artist-card" onclick="selectArtist('${a.id}','${esc(a.name)}')">
+      <img class="artist-img" src="${a.images[0]?.url||''}" onerror="this.style.visibility='hidden'" alt="">
+      <div>
+        <div class="artist-name">${esc(a.name)}</div>
+        <div class="artist-genre">${a.genres[0]||'artist'}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function selectArtist(id, name) {
+  artistName = name;
+  setStatus('Loading top songs for ' + name + '...');
+  document.getElementById('artist-results').innerHTML = '';
+  try {
+    const r1 = await fetch('https://api.spotify.com/v1/artists/' + id + '/top-tracks?market=US', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    if (!r1.ok) throw new Error();
+    const d1 = await r1.json();
+    let tracks = d1.tracks.map(t => t.name);
+
+    if (tracks.length < 32) {
+      try {
+        const r2 = await fetch('https://api.spotify.com/v1/artists/' + id + '/albums?include_groups=album,single&market=US&limit=50', {
+          headers: { Authorization: 'Bearer ' + accessToken }
+        });
+        const d2 = await r2.json();
+        const albumIds = d2.items.slice(0, 10).map(a => a.id).join(',');
+        if (albumIds) {
+          const r3 = await fetch('https://api.spotify.com/v1/albums?ids=' + albumIds, {
+            headers: { Authorization: 'Bearer ' + accessToken }
+          });
+          const d3 = await r3.json();
+          for (const album of d3.albums) {
+            for (const t of album.tracks.items) {
+              if (!tracks.includes(t.name)) tracks.push(t.name);
+            }
+          }
+        }
+      } catch(e) {}
+    }
+
+    tracks = [...new Set(tracks)].slice(0, 32);
+    if (tracks.length < 2) { setError('Not enough tracks found.'); setStatus(''); return; }
+
+    const sizes = [2,4,8,16,32];
+    const size = sizes.find(s => s >= tracks.length) || 32;
+    const songs = tracks.slice(0, size).map((name, i) => ({ id: i, name }));
+    while (songs.length < size) songs.push({ id: songs.length, name: 'BYE', bye: true });
+
+    setStatus('');
+    startBracket(songs);
+  } catch(e) {
+    setError('Could not load tracks. Try another artist.');
+    setStatus('');
+  }
+}
+
+function startBracket(songs) {
+  const size = songs.length;
+  const pairs = [];
+  for (let i = 0; i < size / 2; i++) pairs.push([songs[i], songs[size - 1 - i]]);
+
+  const numRounds = Math.log2(size);
+  bracket = [pairs.map((p, i) => ({ id: i, songs: [p[0], p[1]], winner: null }))];
+  for (let r = 1; r < numRounds; r++) {
+    const prev = bracket[r-1];
+    bracket.push(prev.map((_, i) => i % 2 === 0 ? { id: i/2, songs: [null, null], winner: null } : null).filter(Boolean));
+  }
+
+  // auto-advance byes in round 0
+  bracket[0].forEach((match, mi) => {
+    if (match.songs[0]?.bye && !match.songs[1]?.bye) advanceWinner(0, mi, match.songs[1]);
+    else if (match.songs[1]?.bye && !match.songs[0]?.bye) advanceWinner(0, mi, match.songs[0]);
+    else if (match.songs[0]?.bye && match.songs[1]?.bye) { match.winner = match.songs[0]; }
+  });
+
+  document.getElementById('setup-screen').classList.remove('active');
+  document.getElementById('bracket-screen').classList.add('active');
+  document.getElementById('bracket-title').textContent = artistName;
+  renderBracket();
+}
+
+function advanceWinner(roundIdx, matchIdx, winner) {
+  const match = bracket[roundIdx][matchIdx];
+  if (match.winner) return;
+  match.winner = winner;
+  if (roundIdx + 1 < bracket.length) {
+    const ni = Math.floor(matchIdx / 2);
+    const ns = matchIdx % 2;
+    bracket[roundIdx + 1][ni].songs[ns] = winner;
+  }
+}
+
+function pickWinner(roundIdx, matchIdx, slotIdx) {
+  const match = bracket[roundIdx][matchIdx];
+  if (match.winner) return;
+  const winner = match.songs[slotIdx];
+  if (!winner || winner.bye) return;
+  advanceWinner(roundIdx, matchIdx, winner);
+
+  // check if opponent in next round is a bye
+  if (roundIdx + 1 < bracket.length) {
+    const ni = Math.floor(matchIdx / 2);
+    const nm = bracket[roundIdx + 1][ni];
+    const ns = matchIdx % 2;
+    const opp = nm.songs[ns === 0 ? 1 : 0];
+    if (opp?.bye) setTimeout(() => { advanceWinner(roundIdx + 1, ni, winner); renderBracket(); }, 80);
+  }
+
+  renderBracket();
+}
+
+function renderBracket() {
+  const wrap = document.getElementById('bracket-wrap');
+  const champArea = document.getElementById('champion-area');
+  wrap.innerHTML = '';
+
+  const roundNames = ['Round of 32','Round of 16','Quarterfinals','Semifinals','Final'];
+  const totalRounds = bracket.length;
+
+  // Champion check
+  const finalMatch = bracket[totalRounds - 1][0];
+  if (finalMatch?.winner && !finalMatch.winner.bye) {
+    champArea.style.display = 'block';
+    champArea.innerHTML = `
+      <div class="champion-card">
+        <div class="trophy">🏆</div>
+        <div class="champ-label">Your #1 song</div>
+        <div class="champ-name">${esc(finalMatch.winner.name)}</div>
+        <div class="champ-artist">${esc(artistName)}</div>
+      </div>`;
+  } else {
+    champArea.style.display = 'none';
+  }
+
+  for (let r = 0; r < totalRounds; r++) {
+    const col = document.createElement('div');
+    col.className = 'round-col';
+    col.innerHTML = `<div class="round-title">${roundNames[Math.min(r, roundNames.length-1)]}</div>`;
+
+    const matchesDiv = document.createElement('div');
+    matchesDiv.className = 'round-matches';
+
+    const numMatches = bracket[r].length;
+    const slotH = Math.max(40, Math.floor(560 / Math.pow(2, totalRounds - r)));
+
+    bracket[r].forEach((match, mi) => {
+      const cell = document.createElement('div');
+      cell.className = 'match-cell';
+      cell.style.height = (slotH * 2 + 8) + 'px';
+
+      const block = document.createElement('div');
+      block.className = 'match-block';
+
+      [0, 1].forEach(si => {
+        const song = match.songs[si];
+        const slot = document.createElement('div');
+        slot.className = 'song-slot';
+
+        if (!song) {
+          slot.classList.add('empty');
+          slot.innerHTML = '<span>TBD</span>';
+        } else if (song.bye) {
+          slot.classList.add('empty');
+          slot.innerHTML = '<span>—</span>';
+        } else {
+          if (match.winner) {
+            slot.classList.add(match.winner.id === song.id ? 'winner' : 'loser');
+            slot.setAttribute('data-decided', '1');
+          } else {
+            slot.style.cursor = 'pointer';
+            slot.onclick = () => pickWinner(r, mi, si);
+          }
+          slot.innerHTML = `<span class="seed">${song.id + 1}</span><span class="song-name" title="${esc(song.name)}">${esc(song.name)}</span>`;
+        }
+        block.appendChild(slot);
+      });
+
+      cell.appendChild(block);
+      matchesDiv.appendChild(cell);
+    });
+
+    col.appendChild(matchesDiv);
+    wrap.appendChild(col);
+
+    // connector SVGs between rounds
+    if (r < totalRounds - 1) {
+      const connCol = document.createElement('div');
+      connCol.className = 'connector-col';
+      connCol.innerHTML = '<div class="round-title" style="opacity:0;">—</div>';
+      const connMatches = document.createElement('div');
+      connMatches.style.cssText = 'display:flex;flex-direction:column;flex:1;';
+
+      bracket[r].forEach((_, mi) => {
+        if (mi % 2 === 0) {
+          const h = (slotH * 2 + 8) * 2;
+          const pair = document.createElement('div');
+          pair.style.cssText = `height:${h}px;display:flex;align-items:center;`;
+          pair.innerHTML = `<svg height="${h}" viewBox="0 0 20 ${h}" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 ${h/4} H10 V${h*3/4} H0" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" fill="none"/>
+            <path d="M10 ${h/2} H20" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+          </svg>`;
+          connMatches.appendChild(pair);
+        }
+      });
+
+      connCol.appendChild(connMatches);
+      wrap.appendChild(connCol);
+    }
+  }
+}
+
+function resetApp() {
+  bracket = [];
+  artistName = '';
+  document.getElementById('bracket-screen').classList.remove('active');
+  document.getElementById('setup-screen').classList.add('active');
+  document.getElementById('artist-results').innerHTML = '';
+  document.getElementById('artist-input').value = '';
+  document.getElementById('champion-area').style.display = 'none';
+  setStatus('');
+  setError('');
+}
+
+function loadDemo() {
+  artistName = 'The Beatles';
+  const names = ['Come Together','Let It Be','Hey Jude','Yesterday','Something','Here Comes the Sun','In My Life','Blackbird','A Day in the Life','Eleanor Rigby','Help!','Norwegian Wood','Strawberry Fields Forever','Penny Lane','While My Guitar Gently Weeps','Golden Slumbers','Revolution','Get Back','Ob-La-Di Ob-La-Da','With a Little Help from My Friends','Back in the U.S.S.R.','Twist and Shout','Michelle','And I Love Her','I Am the Walrus','Across the Universe','The Long and Winding Road','Eight Days a Week','Ticket to Ride','We Can Work It Out','All You Need Is Love','Please Please Me'];
+  const songs = names.map((n, i) => ({ id: i, name: n }));
+  showSearch();
+  startBracket(songs);
+}
+
+function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }
+function setError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+checkAuth();
+</script>
+</body>
+</html>

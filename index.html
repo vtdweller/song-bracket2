@@ -346,7 +346,7 @@
 
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -478,7 +478,7 @@ async function selectArtist(id, name) {
   document.getElementById('artist-results').innerHTML = '';
   try {
     // Fetch albums
-    const r1 = await fetch('https://api.spotify.com/v1/artists/' + id + '/albums?include_groups=album,single&market=US&limit=50', {
+    const r1 = await fetch('https://api.spotify.com/v1/artists/' + id + '/albums?include_groups=album,single&market=US&limit=20', {
       headers: { Authorization: 'Bearer ' + accessToken },
       cache: 'no-store'
     });

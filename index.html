@@ -346,7 +346,7 @@
 
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -486,32 +486,32 @@ async function selectArtist(id, name) {
     const d1 = await r1.json();
     if (!d1.items || !d1.items.length) { setError('No albums found for this artist.'); setStatus(''); return; }
 
-    // Sort by release date descending, take top 10 albums
+    // Sort by release date descending, take top 8 albums
     const albums = d1.items
       .sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''))
-      .slice(0, 10);
-    const albumIds = albums.map(a => a.id).join(',');
+      .slice(0, 8);
 
-    // Fetch full album tracks
+    // Fetch tracks for each album individually
     setStatus('Loading tracks...');
-    const r2 = await fetch('https://api.spotify.com/v1/albums?ids=' + albumIds, {
-      headers: { Authorization: 'Bearer ' + accessToken },
-      cache: 'no-store'
-    });
-    if (!r2.ok) { const e = await r2.json(); throw new Error(e.error?.message || r2.status); }
-    const d2 = await r2.json();
-
-    // Collect unique track names, filtering out featuring/live/remix dupes
     const seen = new Set();
     const tracks = [];
-    for (const album of d2.albums) {
-      for (const t of album.tracks.items) {
-        const key = t.name.toLowerCase().replace(/\s*[\(\[].*/,'').trim();
-        if (!seen.has(key)) {
-          seen.add(key);
-          tracks.push(t.name);
+    for (const album of albums) {
+      try {
+        const r2 = await fetch('https://api.spotify.com/v1/albums/' + album.id + '/tracks?limit=50&market=US', {
+          headers: { Authorization: 'Bearer ' + accessToken },
+          cache: 'no-store'
+        });
+        if (!r2.ok) continue;
+        const d2 = await r2.json();
+        for (const t of (d2.items || [])) {
+          const key = t.name.toLowerCase().replace(/\s*[\(\[].*/, '').trim();
+          if (!seen.has(key)) {
+            seen.add(key);
+            tracks.push(t.name);
+          }
         }
-      }
+      } catch(e) { continue; }
+      if (tracks.length >= 32) break;
     }
 
     if (tracks.length < 2) { setError('Not enough tracks found. Try another artist.'); setStatus(''); return; }

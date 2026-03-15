@@ -283,45 +283,41 @@ async function togglePreview(e, songName, artist, btn) {
   let previewUrl = itunesCache[cacheKey];
   if (previewUrl === undefined) {
     try {
-      // First search: song + artist together
-      const q1 = encodeURIComponent(songName + ' ' + artist);
-      const res1 = await fetch('https://itunes.apple.com/search?term=' + q1 + '&entity=song&limit=25&media=music');
-      const data1 = await res1.json();
-      let results = data1.results || [];
-      const artistLower = artist.toLowerCase();
-      const songLower = songName.toLowerCase();
-      const dupeWords = ['live', 'acoustic', 'demo', 'karaoke', 'instrumental'];
-      function isCleanVersion(r) {
-        const trackLower = (r.trackName || '').toLowerCase();
-        const albumLower = (r.collectionName || '').toLowerCase();
-        return !dupeWords.some(function(w) {
-          return trackLower.indexOf(w) !== -1 || albumLower.indexOf(w) !== -1;
-        });
+      const badWords = ['live', 'acoustic', 'demo', 'karaoke', 'instrumental'];
+      function isBadVersion(r) {
+        const t = (r.trackName || '').toLowerCase();
+        const a = (r.collectionName || '').toLowerCase();
+        return badWords.some(function(w) { return t.indexOf(w) !== -1 || a.indexOf(w) !== -1; });
       }
       function artistMatches(r) {
         if (!r.artistName) return false;
-        const rArtist = r.artistName.toLowerCase();
-        return rArtist === artistLower || rArtist.indexOf(artistLower) !== -1 || artistLower.indexOf(rArtist) !== -1;
+        const rA = r.artistName.toLowerCase();
+        const aL = artist.toLowerCase();
+        return rA === aL || rA.indexOf(aL) !== -1 || aL.indexOf(rA) !== -1;
       }
       function trackMatches(r) {
         if (!r.trackName) return false;
-        const rTrack = r.trackName.toLowerCase().replace(/\s*[-\(].*$/, '').trim();
-        return rTrack === songLower || rTrack.indexOf(songLower) !== -1 || songLower.indexOf(rTrack) !== -1;
+        const rT = r.trackName.toLowerCase().replace(/\s*[\(\-].*$/, '').trim();
+        const sL = songName.toLowerCase().replace(/\s*[\(\-].*$/, '').trim();
+        return rT === sL || rT.indexOf(sL) !== -1 || sL.indexOf(rT) !== -1;
       }
-      // If no artist match found in combined search, try song name alone with more results
-      const hasArtistMatch = results.some(function(r) { return r.artistName && artistMatches(r); });
-      if (!hasArtistMatch) {
+      // Search with song + artist
+      const q1 = encodeURIComponent(songName + ' ' + artist);
+      const res1 = await fetch('https://itunes.apple.com/search?term=' + q1 + '&entity=song&limit=25&media=music');
+      const d1 = await res1.json();
+      let results = d1.results || [];
+      // If no correct artist found, broaden to song name only with 50 results
+      if (!results.some(artistMatches)) {
         const q2 = encodeURIComponent(songName);
         const res2 = await fetch('https://itunes.apple.com/search?term=' + q2 + '&entity=song&limit=50&media=music');
-        const data2 = await res2.json();
-        results = data2.results || [];
+        const d2 = await res2.json();
+        results = d2.results || [];
       }
-
-      // Best: correct artist + correct track + clean version
-      let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r) && isCleanVersion(r); });
-      // OK: correct artist + correct track, any version
+      // Priority: artist+track+clean > artist+track > artist+clean > artist only
+      let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r) && !isBadVersion(r); });
       if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r); });
-      // Do NOT fall back — wrong song is worse than no preview
+      if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && !isBadVersion(r); });
+      if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r); });
       previewUrl = match ? match.previewUrl : null;
       itunesCache[cacheKey] = previewUrl;
     } catch(err) { previewUrl = null; }

@@ -254,21 +254,26 @@ async function selectArtist(name) {
   document.getElementById('artist-results').innerHTML = '';
   document.getElementById('search-area').style.display = 'none';
   try {
-    // Fetch Last.fm top tracks
-    const url = LASTFM + '?method=artist.gettoptracks&artist=' + encodeURIComponent(name) + '&api_key=' + LASTFM_KEY + '&format=json&limit=50';
+    // Fetch Last.fm top tracks — fetch 100 so we have enough after dedup, then sort by listeners
+    const url = LASTFM + '?method=artist.gettoptracks&artist=' + encodeURIComponent(name) + '&api_key=' + LASTFM_KEY + '&format=json&limit=100';
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.message);
     const tracks = (data.toptracks && data.toptracks.track) || [];
     if (tracks.length < 2) { setError('Not enough tracks found. Try another artist.'); setStatus(''); return; }
 
-    // Deduplicate by base title
+    // Deduplicate by base title, skip intros/outros
     const seenBase = {};
     const dedupedTracks = [];
     const skipNames = ['intro', 'outro', 'interlude', 'skit'];
     tracks.forEach(function(t) {
       const base = t.name.toLowerCase().replace(/\s*[-\(].*$/, '').trim();
       if (!seenBase[base] && !skipNames.includes(base)) { seenBase[base] = true; dedupedTracks.push(t); }
+    });
+
+    // Re-sort by listener count (more representative of mainstream popularity than play count)
+    dedupedTracks.sort(function(a, b) {
+      return (parseInt(b.listeners) || 0) - (parseInt(a.listeners) || 0);
     });
 
     const sizes = [2,4,8,16,32];

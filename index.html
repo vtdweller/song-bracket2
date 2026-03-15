@@ -58,7 +58,7 @@
   .song-slot + .song-slot { border-radius: 0 0 6px 6px; }
   .song-slot:not(.empty):not(.loser):not([data-decided]):hover { background: var(--surface2); border-color: var(--border2); }
   .song-slot.winner { background: var(--green-dim); border-color: rgba(29,185,84,0.4) !important; color: #1DB954; font-weight: 500; }
-  .song-slot.loser { opacity: 0.3; cursor: default; }
+  .song-slot.loser { opacity: 0.3; cursor: pointer; }
   .song-slot.empty { color: var(--hint); cursor: default; font-style: italic; font-size: 11px; }
   .song-slot .seed { font-size: 9px; color: var(--hint); margin-right: 5px; flex-shrink: 0; width: 14px; text-align: right; }
   .song-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 88px; display: inline-block; flex: 1; }
@@ -292,17 +292,46 @@ function advanceWinner(roundIdx, matchIdx, winner) {
   }
 }
 
+function clearDownstream(roundIdx, matchIdx) {
+  // Recursively clear winner and downstream results from this match onwards
+  if (roundIdx >= bracket.length) return;
+  const match = bracket[roundIdx][matchIdx];
+  if (!match) return;
+  const prevWinner = match.winner;
+  match.winner = null;
+  // Clear the slot this match feeds into in the next round
+  if (roundIdx + 1 < bracket.length) {
+    const ni = Math.floor(matchIdx / 2);
+    const ns = matchIdx % 2;
+    const nextMatch = bracket[roundIdx + 1][ni];
+    if (nextMatch && nextMatch.songs[ns] && prevWinner && nextMatch.songs[ns].id === prevWinner.id) {
+      nextMatch.songs[ns] = null;
+      clearDownstream(roundIdx + 1, ni);
+    }
+  }
+}
+
 function pickWinner(roundIdx, matchIdx, slotIdx) {
   const match = bracket[roundIdx][matchIdx];
-  if (match.winner) return;
-  const winner = match.songs[slotIdx];
-  if (!winner || winner.bye) return;
-  advanceWinner(roundIdx, matchIdx, winner);
+  const clicked = match.songs[slotIdx];
+  if (!clicked || clicked.bye) return;
+
+  // If clicking the current winner, undo it
+  if (match.winner && match.winner.id === clicked.id) {
+    clearDownstream(roundIdx, matchIdx);
+    renderBracket();
+    return;
+  }
+
+  // If match already has a winner (switching pick), clear downstream first
+  if (match.winner) clearDownstream(roundIdx, matchIdx);
+
+  advanceWinner(roundIdx, matchIdx, clicked);
   if (roundIdx + 1 < bracket.length) {
     const ni = Math.floor(matchIdx / 2);
     const ns = matchIdx % 2;
     const opp = bracket[roundIdx + 1][ni].songs[ns === 0 ? 1 : 0];
-    if (opp && opp.bye) setTimeout(function() { advanceWinner(roundIdx + 1, ni, winner); renderBracket(); }, 80);
+    if (opp && opp.bye) setTimeout(function() { advanceWinner(roundIdx + 1, ni, clicked); renderBracket(); }, 80);
   }
   renderBracket();
 }
@@ -381,12 +410,10 @@ function renderBracket() {
           slot.classList.add('empty');
           slot.innerHTML = '<span>&#8212;</span>';
         } else {
+          slot.style.cursor = 'pointer';
+          slot.onclick = (function(r2, mi2, si2) { return function() { pickWinner(r2, mi2, si2); }; })(r, mi, si);
           if (match.winner) {
             slot.classList.add(match.winner.id === song.id ? 'winner' : 'loser');
-            slot.setAttribute('data-decided', '1');
-          } else {
-            slot.style.cursor = 'pointer';
-            slot.onclick = (function(r2, mi2, si2) { return function() { pickWinner(r2, mi2, si2); }; })(r, mi, si);
           }
           const seedSpan = document.createElement('span');
           seedSpan.className = 'seed';

@@ -342,8 +342,23 @@ function renderBracket() {
             slot.style.cursor = 'pointer';
             slot.onclick = (function(r2, mi2, si2) { return function() { pickWinner(r2, mi2, si2); }; })(r, mi, si);
           }
-          const pBtn = '<button class="play-btn" onclick="togglePreview(event,'' + esc(song.name) + '','' + esc(artistName) + '',this)" title="Preview">&#9654;</button>';
-          slot.innerHTML = '<span class="seed">' + (song.id + 1) + '</span><span class="song-name" title="' + esc(song.name) + '">' + esc(song.name) + '</span>' + pBtn;
+          const seedSpan = document.createElement('span');
+          seedSpan.className = 'seed';
+          seedSpan.textContent = song.id + 1;
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'song-name';
+          nameSpan.title = song.name;
+          nameSpan.textContent = song.name;
+          const playBtn = document.createElement('button');
+          playBtn.className = 'play-btn';
+          playBtn.title = 'Preview';
+          playBtn.innerHTML = '&#9654;';
+          playBtn.onclick = (function(sName, aName, b) {
+            return function(e) { togglePreview(e, sName, aName, b); };
+          })(song.name, artistName, playBtn);
+          slot.appendChild(seedSpan);
+          slot.appendChild(nameSpan);
+          slot.appendChild(playBtn);
         }
         block.appendChild(slot);
       });

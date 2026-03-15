@@ -346,7 +346,7 @@
 
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -531,12 +531,32 @@ async function selectArtist(id, name) {
   }
 }
 
+function buildSeededOrder(n) {
+  // Recursively builds the seeded slot order for a bracket of size n
+  // so that 1v(n), then winner plays winner of (n/2)v(n/2+1), etc.
+  if (n === 2) return [0, 1];
+  const prev = buildSeededOrder(n / 2);
+  const result = [];
+  for (const seed of prev) {
+    result.push(seed);
+    result.push(n - 1 - seed);
+  }
+  return result;
+}
+
 function startBracket(songs) {
   const size = songs.length;
-  const pairs = [];
-  for (let i = 0; i < size / 2; i++) pairs.push([songs[i], songs[size - 1 - i]]);
-
   const numRounds = Math.log2(size);
+
+  // Build the seeded slot order
+  const order = buildSeededOrder(size);
+
+  // Arrange songs into first-round matchups using seeded order
+  const pairs = [];
+  for (let i = 0; i < order.length; i += 2) {
+    pairs.push([songs[order[i]], songs[order[i+1]]]);
+  }
+
   bracket = [pairs.map((p, i) => ({ id: i, songs: [p[0], p[1]], winner: null }))];
   for (let r = 1; r < numRounds; r++) {
     const prev = bracket[r-1];

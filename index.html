@@ -279,17 +279,23 @@ async function togglePreview(e, songName, artist, btn) {
   }
   currentPlayBtn = btn;
   btn.innerHTML = '...';
-  console.log('Preview requested:', songName, 'by', artist);
   const cacheKey = songName + '||' + artist;
   let previewUrl = itunesCache[cacheKey];
-  console.log('Cache key:', cacheKey, '| Cached value:', previewUrl);
   if (previewUrl === undefined) {
     try {
-      // Search by song name only first, then filter by artist — more accurate than combined search
-      const q = encodeURIComponent(songName);
-      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=25&media=music');
-      const data = await res.json();
-      const results = data.results || [];
+      // First search: song + artist together
+      const q1 = encodeURIComponent(songName + ' ' + artist);
+      const res1 = await fetch('https://itunes.apple.com/search?term=' + q1 + '&entity=song&limit=25&media=music');
+      const data1 = await res1.json();
+      let results = data1.results || [];
+      // If no artist match found, try song name alone with more results
+      const hasArtistMatch = results.some(function(r) { return r.artistName && artistMatches(r); });
+      if (!hasArtistMatch) {
+        const q2 = encodeURIComponent(songName);
+        const res2 = await fetch('https://itunes.apple.com/search?term=' + q2 + '&entity=song&limit=50&media=music');
+        const data2 = await res2.json();
+        results = data2.results || [];
+      }
       const artistLower = artist.toLowerCase();
       const songLower = songName.toLowerCase();
       const dupeWords = ['live', 'acoustic', 'demo', 'remix', 'instrumental', 'cover', 'karaoke', 'radio edit', 'extended', 'remaster', 'session', 'version', 'edit', 'mix'];
@@ -316,8 +322,6 @@ async function togglePreview(e, songName, artist, btn) {
       if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r); });
       // Do NOT fall back — wrong song is worse than no preview
       previewUrl = match ? match.previewUrl : null;
-      console.log('iTunes results:', results.map(function(r) { return r.artistName + ' - ' + r.trackName; }));
-      console.log('iTunes match:', match ? (match.artistName + ' - ' + match.trackName) : 'none');
       itunesCache[cacheKey] = previewUrl;
     } catch(err) { previewUrl = null; }
   }

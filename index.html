@@ -67,6 +67,22 @@
   .play-btn.playing { background: var(--green-dim); border-color: rgba(29,185,84,0.5); color: var(--green); }
   .song-slot.winner .play-btn { border-color: rgba(29,185,84,0.4); color: #1DB954; }
   .connector-col { display: flex; flex-direction: column; width: 20px; flex-shrink: 0; }
+  .mode-select { display: flex; gap: 12px; margin-top: 1.5rem; flex-wrap: wrap; }
+  .mode-card { flex: 1; min-width: 200px; background: var(--surface); border: 0.5px solid var(--border2); border-radius: 16px; padding: 1.5rem; cursor: pointer; transition: border-color 0.15s, background 0.15s; text-align: left; }
+  .mode-card:hover { border-color: var(--accent); background: var(--surface2); }
+  .mode-card .mode-icon { font-size: 28px; margin-bottom: 0.75rem; }
+  .mode-card .mode-title { font-family: "Instrument Serif", serif; font-size: 18px; font-weight: 400; margin-bottom: 0.25rem; }
+  .mode-card .mode-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .progress-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .progress-step { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--hint); }
+  .progress-step.active { color: var(--text); }
+  .progress-step.done { color: var(--green); }
+  .progress-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--hint); flex-shrink: 0; }
+  .progress-step.active .progress-dot { background: var(--accent); }
+  .progress-step.done .progress-dot { background: var(--green); }
+  .progress-arrow { color: var(--hint); font-size: 10px; }
+  .next-btn { margin-top: 1.5rem; background: var(--accent); color: #000; border: none; border-radius: 8px; padding: 10px 24px; font-family: "DM Sans", sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+  .next-btn:hover { opacity: 0.85; }
   @media (max-width: 768px) {
     header { padding: 1rem 1.25rem 0.75rem; }
     header h1 { font-size: 22px; }
@@ -94,17 +110,34 @@
 </header>
 
 <div id="setup-screen" class="screen active">
-  <p style="font-size:14px;color:var(--muted);margin-bottom:1.25rem;">Search for any artist to build a bracket from their top 32 songs.</p>
-  <div class="search-row">
-    <input type="text" id="artist-input" placeholder="Search for an artist..." onkeydown="if(event.key==='Enter') searchArtists()" autofocus />
-    <button onclick="searchArtists()">Search</button>
+  <div id="mode-select-area">
+    <p style="font-size:14px;color:var(--muted);margin-bottom:1rem;">Choose your mode:</p>
+    <div class="mode-select">
+      <div class="mode-card" onclick="startMode('single')">
+        <div class="mode-icon">&#127932;</div>
+        <div class="mode-title">One Artist</div>
+        <div class="mode-desc">Pick one artist and crown their #1 song in a 32-song bracket.</div>
+      </div>
+      <div class="mode-card" onclick="startMode('tournament')">
+        <div class="mode-icon">&#127942;</div>
+        <div class="mode-title">Tournament of Champions</div>
+        <div class="mode-desc">Pick 4 artists. Complete a bracket for each, then pit the top 4 songs from each artist against each other in a championship bracket.</div>
+      </div>
+    </div>
   </div>
-  <div id="error-msg"></div>
-  <div id="status-msg"></div>
-  <div id="artist-results" class="artist-results"></div>
+  <div id="search-area" style="display:none;">
+    <div class="search-row">
+      <input type="text" id="artist-input" placeholder="Search for an artist..." onkeydown="if(event.key==='Enter') searchArtists()" autofocus />
+      <button onclick="searchArtists()">Search</button>
+    </div>
+    <div id="error-msg"></div>
+    <div id="status-msg"></div>
+    <div id="artist-results" class="artist-results"></div>
+  </div>
 </div>
 
 <div id="bracket-screen" class="screen">
+  <div id="progress-area" style="display:none;" class="progress-bar"></div>
   <div class="bracket-header">
     <button class="back-btn" onclick="resetApp()">&#8592; New bracket</button>
     <h2 id="bracket-title"></h2>
@@ -118,6 +151,39 @@ const LASTFM_KEY = 'c8cb91be62dcc59e2c73c960190a0b1c';
 const LASTFM = 'https://ws.audioscrobbler.com/2.0/';
 let bracket = [];
 let artistName = '';
+
+// Tournament of Champions state
+let appMode = 'single'; // 'single' or 'tournament'
+let tournamentArtists = []; // [{name, bracket, topFour}]
+let tournamentStep = 0; // 0-3 = artist brackets, 4 = championship
+
+function startMode(mode) {
+  appMode = mode;
+  tournamentArtists = [];
+  tournamentStep = 0;
+  document.getElementById('mode-select-area').style.display = 'none';
+  document.getElementById('search-area').style.display = 'block';
+  if (mode === 'tournament') {
+    updateProgress();
+    document.getElementById('setup-screen').querySelector('p') && null;
+  }
+  setTimeout(function() { document.getElementById('artist-input').focus(); }, 50);
+}
+
+function updateProgress() {
+  const area = document.getElementById('progress-area');
+  if (appMode !== 'tournament') { area.style.display = 'none'; return; }
+  area.style.display = 'flex';
+  const steps = ['Artist 1', 'Artist 2', 'Artist 3', 'Artist 4', 'Championship'];
+  area.innerHTML = steps.map(function(s, i) {
+    const done = i < tournamentStep;
+    const active = i === tournamentStep;
+    const cls = done ? 'done' : active ? 'active' : '';
+    const label = done && tournamentArtists[i] ? tournamentArtists[i].name : s;
+    return (i > 0 ? '<span class="progress-arrow">›</span>' : '') +
+      '<div class="progress-step ' + cls + '"><div class="progress-dot"></div><span>' + esc(label) + '</span></div>';
+  }).join('');
+}
 
 async function searchArtists() {
   const q = document.getElementById('artist-input').value.trim();
@@ -186,6 +252,7 @@ async function selectArtist(name) {
   artistName = name;
   setStatus('Loading top tracks for ' + name + '...');
   document.getElementById('artist-results').innerHTML = '';
+  document.getElementById('search-area').style.display = 'none';
   try {
     // Fetch Last.fm top tracks
     const url = LASTFM + '?method=artist.gettoptracks&artist=' + encodeURIComponent(name) + '&api_key=' + LASTFM_KEY + '&format=json&limit=50';
@@ -271,25 +338,15 @@ function buildSeededOrder(n) {
 }
 
 function startBracket(songs) {
-  const size = songs.length;
-  const numRounds = Math.log2(size);
-  const order = buildSeededOrder(size);
-  const pairs = [];
-  for (let i = 0; i < order.length; i += 2) pairs.push([songs[order[i]], songs[order[i+1]]]);
-  bracket = [pairs.map(function(p, i) { return { id: i, songs: [p[0], p[1]], winner: null }; })];
-  for (let r = 1; r < numRounds; r++) {
-    const prev = bracket[r-1];
-    bracket.push(prev.map(function(_, i) { return i % 2 === 0 ? { id: i/2, songs: [null, null], winner: null } : null; }).filter(Boolean));
-  }
-  bracket[0].forEach(function(match, mi) {
-    if (match.songs[0] && match.songs[0].bye && match.songs[1] && !match.songs[1].bye) advanceWinner(0, mi, match.songs[1]);
-    else if (match.songs[1] && match.songs[1].bye && match.songs[0] && !match.songs[0].bye) advanceWinner(0, mi, match.songs[0]);
-    else if (match.songs[0] && match.songs[0].bye && match.songs[1] && match.songs[1].bye) match.winner = match.songs[0];
-  });
   document.getElementById('setup-screen').classList.remove('active');
   document.getElementById('bracket-screen').classList.add('active');
-  document.getElementById('bracket-title').textContent = artistName;
-  renderBracket();
+  if (appMode === 'tournament') {
+    document.getElementById('bracket-title').textContent = artistName + ' (Artist ' + (tournamentStep + 1) + ' of 4)';
+    updateProgress();
+  } else {
+    document.getElementById('bracket-title').textContent = artistName;
+  }
+  startBracketFromSongs(songs);
 }
 
 function advanceWinner(roundIdx, matchIdx, winner) {
@@ -405,16 +462,20 @@ function renderBracket() {
       }
     });
 
+    const isChamp = (appMode === 'tournament' && tournamentStep === 4);
     function placeRow(rank, song) {
       if (!song || song.bye) return '';
       const medals = ['&#127942;', '&#129352;', '&#129353;', '&#129354;'];
       const sizes = ['24px', '16px', '15px', '15px'];
       const opacities = ['1', '0.85', '0.7', '0.7'];
+      const sub = isChamp
+        ? (song.artist ? esc(song.artist) : '')
+        : 'seed ' + (song.id + 1);
       return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:0.5px solid rgba(255,255,255,0.06);opacity:' + opacities[rank-1] + '">' +
         '<span style="font-size:' + sizes[rank-1] + ';flex-shrink:0;">' + medals[rank-1] + '</span>' +
         '<div style="text-align:left;">' +
         '<div style="font-size:' + (rank === 1 ? '18px' : '13px') + ';font-weight:500;color:var(--text);">' + esc(song.name) + '</div>' +
-        '<div style="font-size:10px;color:var(--hint);">seed ' + (song.id + 1) + '</div>' +
+        '<div style="font-size:10px;color:var(--hint);">' + sub + '</div>' +
         '</div></div>';
     }
 
@@ -422,9 +483,21 @@ function renderBracket() {
     if (finalist) placesHtml += placeRow(2, finalist);
     thirdFourth.forEach(function(s, i) { placesHtml += placeRow(3 + i, s); });
 
+    let nextBtn = '';
+    if (appMode === 'tournament' && tournamentStep < 4) {
+      if (tournamentStep < 3) {
+        nextBtn = '<button class="next-btn" onclick="nextTournamentArtist()">Next Artist &rarr;</button>';
+      } else {
+        nextBtn = '<button class="next-btn" onclick="startChampionship()">&#127942; Start Championship &rarr;</button>';
+      }
+    }
+
+    const cardTitle = (appMode === 'tournament' && tournamentStep === 4)
+      ? 'Tournament of Champions &mdash; Final Results'
+      : 'Final standings &mdash; ' + esc(artistName);
     champArea.innerHTML = '<div class="champion-card" style="max-width:320px;">' +
-      '<div class="champ-label" style="margin-bottom:1rem;">Final standings &mdash; ' + esc(artistName) + '</div>' +
-      placesHtml + '</div>';
+      '<div class="champ-label" style="margin-bottom:1rem;">' + cardTitle + '</div>' +
+      placesHtml + nextBtn + '</div>';
   } else {
     champArea.style.display = 'none';
   }
@@ -462,15 +535,22 @@ function renderBracket() {
           seedSpan.textContent = song.id + 1;
           const nameSpan = document.createElement('span');
           nameSpan.className = 'song-name';
-          nameSpan.title = song.name;
+          nameSpan.title = song.artist ? song.name + ' (' + song.artist + ')' : song.name;
           nameSpan.textContent = song.name;
+          if (song.artist && appMode === 'tournament' && tournamentStep === 4) {
+            nameSpan.title = song.name + ' — ' + song.artist;
+            const artistTag = document.createElement('span');
+            artistTag.style.cssText = 'display:block;font-size:9px;color:var(--hint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+            artistTag.textContent = song.artist;
+            nameSpan.appendChild(artistTag);
+          }
           const playBtn = document.createElement('button');
           playBtn.className = 'play-btn';
           playBtn.title = 'Preview';
           playBtn.innerHTML = '&#9654;';
           playBtn.onclick = (function(sName, aName, b) {
             return function(e) { togglePreview(e, sName, aName, b); };
-          })(song.name, artistName, playBtn);
+          })(song.name, song.artist || artistName, playBtn);
           slot.appendChild(seedSpan);
           slot.appendChild(nameSpan);
           slot.appendChild(playBtn);
@@ -503,7 +583,29 @@ function renderBracket() {
   }
 }
 
-function resetApp() {
+function getTopFour() {
+  // Returns [winner, 2nd, 3rd, 4th] from current bracket
+  const totalRounds = bracket.length;
+  const finalMatch = bracket[totalRounds - 1][0];
+  if (!finalMatch || !finalMatch.winner) return [];
+  const top = [finalMatch.winner];
+  const finalist = finalMatch.songs.find(function(s) { return s && !s.bye && s.id !== finalMatch.winner.id; });
+  if (finalist) top.push(finalist);
+  const semis = bracket.length >= 2 ? bracket[bracket.length - 2] : [];
+  semis.forEach(function(m) {
+    if (m && m.winner) {
+      const loser = m.songs.find(function(s) { return s && !s.bye && s.id !== m.winner.id; });
+      if (loser) top.push(loser);
+    }
+  });
+  return top.slice(0, 4);
+}
+
+function nextTournamentArtist() {
+  // Save current bracket results
+  tournamentArtists.push({ name: artistName, topFour: getTopFour() });
+  tournamentStep++;
+  // Reset for next artist
   bracket = []; artistName = '';
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
   currentPlayBtn = null;
@@ -513,8 +615,97 @@ function resetApp() {
   document.getElementById('artist-results').innerHTML = '';
   document.getElementById('artist-input').value = '';
   document.getElementById('champion-area').style.display = 'none';
+  document.getElementById('search-area').style.display = 'block';
+  document.getElementById('mode-select-area').style.display = 'none';
   setStatus(''); setError('');
+  updateProgress();
   setTimeout(function() { document.getElementById('artist-input').focus(); }, 50);
+}
+
+function startChampionship() {
+  // Save last bracket
+  tournamentArtists.push({ name: artistName, topFour: getTopFour() });
+  tournamentStep = 4;
+
+  // Build 16-song championship bracket
+  // Seeds: 1=artist1 winner, 2=artist2 winner, 3=artist3 winner, 4=artist4 winner,
+  //        5=artist1 2nd, 6=artist2 2nd ... 13=artist1 3rd, ...
+  const songs = [];
+  var id = 0;
+  // Seeds 1-4: winner from each artist, Seeds 5-8: 2nd place, Seeds 9-12: 3rd, Seeds 13-16: 4th
+  for (var rank = 0; rank < 4; rank++) {
+    for (var a = 0; a < 4; a++) {
+      var tf = tournamentArtists[a] ? tournamentArtists[a].topFour : [];
+      if (tf && tf[rank]) {
+        songs.push({ id: id++, name: tf[rank].name, artist: tournamentArtists[a].name });
+      } else {
+        songs.push({ id: id++, name: 'BYE', bye: true });
+      }
+    }
+  }
+
+  // Clear and set up championship
+  bracket = []; artistName = 'Championship';
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  currentPlayBtn = null;
+
+  // Build championship iTunes cache from all artists
+  Object.keys(itunesCache).forEach(function(k) { delete itunesCache[k]; });
+
+  document.getElementById('bracket-screen').classList.remove('active');
+  document.getElementById('setup-screen').classList.add('active');
+  document.getElementById('champion-area').style.display = 'none';
+  updateProgress();
+
+  // Pre-fetch iTunes for all 4 artists then start
+  setStatus('Loading championship...');
+  document.getElementById('setup-screen').classList.add('active');
+  document.getElementById('bracket-screen').classList.remove('active');
+
+  var fetches = tournamentArtists.map(function(a) { return prefetchItunesCatalog(a.name); });
+  Promise.all(fetches).then(function() {
+    setStatus('');
+    document.getElementById('setup-screen').classList.remove('active');
+    document.getElementById('bracket-screen').classList.add('active');
+    document.getElementById('bracket-title').textContent = 'Championship';
+    updateProgress();
+    startBracketFromSongs(songs);
+  });
+}
+
+function startBracketFromSongs(songs) {
+  const size = songs.length;
+  const numRounds = Math.log2(size);
+  const order = buildSeededOrder(size);
+  const pairs = [];
+  for (let i = 0; i < order.length; i += 2) pairs.push([songs[order[i]], songs[order[i+1]]]);
+  bracket = [pairs.map(function(p, i) { return { id: i, songs: [p[0], p[1]], winner: null }; })];
+  for (let r = 1; r < numRounds; r++) {
+    const prev = bracket[r-1];
+    bracket.push(prev.map(function(_, i) { return i % 2 === 0 ? { id: i/2, songs: [null, null], winner: null } : null; }).filter(Boolean));
+  }
+  bracket[0].forEach(function(match, mi) {
+    if (match.songs[0] && match.songs[0].bye && match.songs[1] && !match.songs[1].bye) advanceWinner(0, mi, match.songs[1]);
+    else if (match.songs[1] && match.songs[1].bye && match.songs[0] && !match.songs[0].bye) advanceWinner(0, mi, match.songs[0]);
+  });
+  renderBracket();
+}
+
+function resetApp() {
+  bracket = []; artistName = '';
+  appMode = 'single'; tournamentArtists = []; tournamentStep = 0;
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  currentPlayBtn = null;
+  Object.keys(itunesCache).forEach(function(k) { delete itunesCache[k]; });
+  document.getElementById('bracket-screen').classList.remove('active');
+  document.getElementById('setup-screen').classList.add('active');
+  document.getElementById('mode-select-area').style.display = 'block';
+  document.getElementById('search-area').style.display = 'none';
+  document.getElementById('progress-area').style.display = 'none';
+  document.getElementById('artist-results').innerHTML = '';
+  document.getElementById('artist-input').value = '';
+  document.getElementById('champion-area').style.display = 'none';
+  setStatus(''); setError('');
 }
 
 function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }

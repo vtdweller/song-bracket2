@@ -299,6 +299,43 @@
   .song-slot.winner .play-btn { border-color: rgba(29,185,84,0.4); color: #1DB954; }
   .no-preview { width: 20px; flex-shrink: 0; margin-left: 5px; }
 
+  #spotify-embed {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 300px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    z-index: 1000;
+    display: none;
+  }
+  #spotify-embed iframe {
+    display: block;
+    width: 300px;
+    height: 80px;
+    border: none;
+  }
+  #embed-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    line-height: 1;
+    padding: 0;
+  }
+
   /* connector lines between rounds */
   .connector-col {
     display: flex;
@@ -366,9 +403,14 @@
   <div id="bracket-wrap" class="bracket-wrap"></div>
 </div>
 
+<div id="spotify-embed">
+  <button id="embed-close" onclick="closeEmbed()">&#x2715;</button>
+  <iframe id="embed-iframe" src="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+</div>
+
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -529,7 +571,7 @@ async function selectArtist(id, name) {
           const key = t.name.toLowerCase().replace(/\s*[\(\[].*/, '').trim();
           if (!seen.has(key)) {
             seen.add(key);
-            tracks.push({ name: t.name, popularity: album.popularity || 0, preview: t.preview_url || null });
+            tracks.push({ name: t.name, popularity: album.popularity || 0, preview: t.preview_url || null, trackId: t.id || null });
           }
         }
       } catch(e) { continue; }
@@ -542,7 +584,7 @@ async function selectArtist(id, name) {
 
     const sizes = [2,4,8,16,32];
     const size = sizes.find(s => s >= Math.min(tracks.length, 32)) || 32;
-    const songs = tracks.slice(0, size).map((t, i) => ({ id: i, name: t.name, preview: t.preview || null }));
+    const songs = tracks.slice(0, size).map((t, i) => ({ id: i, name: t.name, preview: t.preview || null, trackId: t.trackId || null }));
     while (songs.length < size) songs.push({ id: songs.length, name: 'BYE', bye: true });
 
     setStatus('');
@@ -628,29 +670,31 @@ function pickWinner(roundIdx, matchIdx, slotIdx) {
   renderBracket();
 }
 
-let currentAudio = null;
 let currentPlayBtn = null;
 
-function togglePreview(e, url, btn) {
+function togglePreview(e, trackId, btn) {
   e.stopPropagation();
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-    if (currentPlayBtn) { currentPlayBtn.classList.remove('playing'); currentPlayBtn.innerHTML = '&#9654;'; }
-    if (currentPlayBtn === btn) { currentPlayBtn = null; return; }
+  const embedDiv = document.getElementById('spotify-embed');
+  const iframe = document.getElementById('embed-iframe');
+  if (currentPlayBtn === btn) {
+    closeEmbed();
+    return;
   }
+  if (currentPlayBtn) { currentPlayBtn.classList.remove('playing'); currentPlayBtn.innerHTML = '&#9654;'; }
   currentPlayBtn = btn;
   btn.classList.add('playing');
   btn.innerHTML = '&#9646;&#9646;';
-  currentAudio = new Audio(url);
-  currentAudio.volume = 0.7;
-  currentAudio.play();
-  currentAudio.onended = () => {
-    btn.classList.remove('playing');
-    btn.innerHTML = '&#9654;';
-    currentAudio = null;
-    currentPlayBtn = null;
-  };
+  iframe.src = 'https://open.spotify.com/embed/track/' + trackId + '?utm_source=generator&theme=0';
+  embedDiv.style.display = 'block';
+}
+
+function closeEmbed() {
+  const embedDiv = document.getElementById('spotify-embed');
+  const iframe = document.getElementById('embed-iframe');
+  embedDiv.style.display = 'none';
+  iframe.src = '';
+  if (currentPlayBtn) { currentPlayBtn.classList.remove('playing'); currentPlayBtn.innerHTML = '&#9654;'; }
+  currentPlayBtn = null;
 }
 
 function renderBracket() {
@@ -714,8 +758,8 @@ function renderBracket() {
             slot.style.cursor = 'pointer';
             slot.onclick = () => pickWinner(r, mi, si);
           }
-          const previewBtn = song.preview
-            ? `<button class="play-btn" onclick="togglePreview(event,'${song.preview}',this)" title="Preview">&#9654;</button>`
+          const previewBtn = song.trackId
+            ? `<button class="play-btn" onclick="togglePreview(event,'${song.trackId}',this)" title="Preview">&#9654;</button>`
             : `<span class="no-preview"></span>`;
           slot.innerHTML = `<span class="seed">${song.id + 1}</span><span class="song-name" title="${esc(song.name)}">${esc(song.name)}</span>${previewBtn}`;
         }

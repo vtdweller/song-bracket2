@@ -410,7 +410,7 @@
 
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -684,7 +684,7 @@ function togglePreview(e, trackId, btn) {
   currentPlayBtn = btn;
   btn.classList.add('playing');
   btn.innerHTML = '&#9646;&#9646;';
-  iframe.src = 'https://open.spotify.com/embed/track/' + trackId + '?utm_source=generator&theme=0';
+  iframe.src = 'https://open.spotify.com/embed/track/' + trackId + '?utm_source=generator&theme=0&autoplay=1';
   embedDiv.style.display = 'block';
 }
 

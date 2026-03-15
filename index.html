@@ -271,14 +271,11 @@ async function selectArtist(name) {
       if (!seenBase[base] && !skipNames.includes(base)) { seenBase[base] = true; dedupedTracks.push(t); }
     });
 
-    // Log first few tracks to check available fields
-    console.log('First 3 tracks:', dedupedTracks.slice(0, 3).map(function(t) { return JSON.stringify(t); }));
-
-    // Re-sort by listener count (more representative of mainstream popularity than play count)
+    // Re-sort by listener count
     dedupedTracks.sort(function(a, b) {
       return (parseInt(b.listeners) || 0) - (parseInt(a.listeners) || 0);
     });
-    console.log('After sort, first 5:', dedupedTracks.slice(0, 5).map(function(t) { return t.name + ' listeners:' + t.listeners + ' playcount:' + t.playcount; }));
+    console.log('Top 35 after sort:', dedupedTracks.slice(0, 35).map(function(t) { return t.name + ' (' + t.listeners + ')'; }));
 
     const sizes = [2,4,8,16,32];
     const size = sizes.find(function(s) { return s >= Math.min(dedupedTracks.length, 32); }) || 32;

@@ -288,14 +288,6 @@ async function togglePreview(e, songName, artist, btn) {
       const res1 = await fetch('https://itunes.apple.com/search?term=' + q1 + '&entity=song&limit=25&media=music');
       const data1 = await res1.json();
       let results = data1.results || [];
-      // If no artist match found, try song name alone with more results
-      const hasArtistMatch = results.some(function(r) { return r.artistName && artistMatches(r); });
-      if (!hasArtistMatch) {
-        const q2 = encodeURIComponent(songName);
-        const res2 = await fetch('https://itunes.apple.com/search?term=' + q2 + '&entity=song&limit=50&media=music');
-        const data2 = await res2.json();
-        results = data2.results || [];
-      }
       const artistLower = artist.toLowerCase();
       const songLower = songName.toLowerCase();
       const dupeWords = ['live', 'acoustic', 'demo', 'remix', 'instrumental', 'cover', 'karaoke', 'radio edit', 'extended', 'remaster', 'session', 'version', 'edit', 'mix'];
@@ -316,6 +308,15 @@ async function togglePreview(e, songName, artist, btn) {
         const rTrack = r.trackName.toLowerCase().replace(/\s*[-\(].*$/, '').trim();
         return rTrack === songLower || rTrack.indexOf(songLower) !== -1 || songLower.indexOf(rTrack) !== -1;
       }
+      // If no artist match found in combined search, try song name alone with more results
+      const hasArtistMatch = results.some(function(r) { return r.artistName && artistMatches(r); });
+      if (!hasArtistMatch) {
+        const q2 = encodeURIComponent(songName);
+        const res2 = await fetch('https://itunes.apple.com/search?term=' + q2 + '&entity=song&limit=50&media=music');
+        const data2 = await res2.json();
+        results = data2.results || [];
+      }
+
       // Best: correct artist + correct track + clean version
       let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r) && isCleanVersion(r); });
       // OK: correct artist + correct track, any version

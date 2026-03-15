@@ -382,7 +382,40 @@ function renderBracket() {
   const finalMatch = bracket[totalRounds - 1][0];
   if (finalMatch && finalMatch.winner && !finalMatch.winner.bye) {
     champArea.style.display = 'block';
-    champArea.innerHTML = '<div class="champion-card"><div class="trophy">&#127942;</div><div class="champ-label">Your #1 song</div><div class="champ-name">' + esc(finalMatch.winner.name) + '</div><div class="champ-artist">' + esc(artistName) + '</div></div>';
+
+    // Find 2nd place: the loser of the final
+    const finalist = finalMatch.songs.find(function(s) { return s && !s.bye && s.id !== finalMatch.winner.id; });
+
+    // Find 3rd/4th: losers of the two semifinals
+    const semis = bracket.length >= 2 ? bracket[bracket.length - 2] : [];
+    const thirdFourth = [];
+    semis.forEach(function(m) {
+      if (m && m.winner) {
+        const loser = m.songs.find(function(s) { return s && !s.bye && s.id !== m.winner.id; });
+        if (loser) thirdFourth.push(loser);
+      }
+    });
+
+    function placeRow(rank, song) {
+      if (!song || song.bye) return '';
+      const medals = ['&#127942;', '&#129352;', '&#129353;', '&#129354;'];
+      const sizes = ['24px', '16px', '15px', '15px'];
+      const opacities = ['1', '0.85', '0.7', '0.7'];
+      return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:0.5px solid rgba(255,255,255,0.06);opacity:' + opacities[rank-1] + '">' +
+        '<span style="font-size:' + sizes[rank-1] + ';flex-shrink:0;">' + medals[rank-1] + '</span>' +
+        '<div style="text-align:left;">' +
+        '<div style="font-size:' + (rank === 1 ? '18px' : '13px') + ';font-weight:500;color:var(--text);">' + esc(song.name) + '</div>' +
+        '<div style="font-size:10px;color:var(--hint);">seed ' + (song.id + 1) + '</div>' +
+        '</div></div>';
+    }
+
+    let placesHtml = placeRow(1, finalMatch.winner);
+    if (finalist) placesHtml += placeRow(2, finalist);
+    thirdFourth.forEach(function(s, i) { placesHtml += placeRow(3 + i, s); });
+
+    champArea.innerHTML = '<div class="champion-card" style="max-width:320px;">' +
+      '<div class="champ-label" style="margin-bottom:1rem;">Final standings &mdash; ' + esc(artistName) + '</div>' +
+      placesHtml + '</div>';
   } else {
     champArea.style.display = 'none';
   }

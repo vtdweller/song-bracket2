@@ -310,6 +310,7 @@ async function togglePreview(e, songName, artist, btn) {
       if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r); });
       // Do NOT fall back to wrong artist — show no preview instead
       previewUrl = match ? match.previewUrl : null;
+      console.log('iTunes match:', match ? (match.artistName + ' - ' + match.trackName) : 'none');
       itunesCache[cacheKey] = previewUrl;
     } catch(err) { previewUrl = null; }
   }

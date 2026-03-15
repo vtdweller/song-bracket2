@@ -285,8 +285,9 @@ async function togglePreview(e, songName, artist, btn) {
   console.log('Cache key:', cacheKey, '| Cached value:', previewUrl);
   if (previewUrl === undefined) {
     try {
-      const q = encodeURIComponent(songName + ' ' + artist);
-      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=10&media=music');
+      // Search by song name only first, then filter by artist — more accurate than combined search
+      const q = encodeURIComponent(songName);
+      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=25&media=music');
       const data = await res.json();
       const results = data.results || [];
       const artistLower = artist.toLowerCase();
@@ -304,11 +305,16 @@ async function togglePreview(e, songName, artist, btn) {
         const rArtist = r.artistName.toLowerCase();
         return rArtist === artistLower || rArtist.indexOf(artistLower) !== -1 || artistLower.indexOf(rArtist) !== -1;
       }
-      // Best: correct artist + clean version
-      let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && isCleanVersion(r); });
-      // OK: correct artist, any version
-      if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r); });
-      // Do NOT fall back to wrong artist — show no preview instead
+      function trackMatches(r) {
+        if (!r.trackName) return false;
+        const rTrack = r.trackName.toLowerCase().replace(/\s*[-\(].*$/, '').trim();
+        return rTrack === songLower || rTrack.indexOf(songLower) !== -1 || songLower.indexOf(rTrack) !== -1;
+      }
+      // Best: correct artist + correct track + clean version
+      let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r) && isCleanVersion(r); });
+      // OK: correct artist + correct track, any version
+      if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r); });
+      // Do NOT fall back — wrong song is worse than no preview
       previewUrl = match ? match.previewUrl : null;
       console.log('iTunes match:', match ? (match.artistName + ' - ' + match.trackName) : 'none');
       itunesCache[cacheKey] = previewUrl;

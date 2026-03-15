@@ -179,7 +179,7 @@ async function selectArtist(name) {
   document.getElementById('artist-results').innerHTML = '';
   try {
     // Fetch Last.fm top tracks
-    const url = LASTFM + '?method=artist.gettoptracks&artist=' + encodeURIComponent(name) + '&api_key=' + LASTFM_KEY + '&format=json&limit=32';
+    const url = LASTFM + '?method=artist.gettoptracks&artist=' + encodeURIComponent(name) + '&api_key=' + LASTFM_KEY + '&format=json&limit=50';
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.message);

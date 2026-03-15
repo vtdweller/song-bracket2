@@ -178,33 +178,74 @@ async function selectArtist(name) {
   setStatus('Loading top tracks for ' + name + '...');
   document.getElementById('artist-results').innerHTML = '';
   try {
+    // Fetch Last.fm top tracks
     const url = LASTFM + '?method=artist.gettoptracks&artist=' + encodeURIComponent(name) + '&api_key=' + LASTFM_KEY + '&format=json&limit=32';
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.message);
     const tracks = (data.toptracks && data.toptracks.track) || [];
     if (tracks.length < 2) { setError('Not enough tracks found. Try another artist.'); setStatus(''); return; }
-    // Deduplicate: strip suffixes like "- Single Version", "(Live)", etc. and keep first occurrence
+
+    // Deduplicate by base title
     const seenBase = {};
     const dedupedTracks = [];
     tracks.forEach(function(t) {
-      const base = t.name.toLowerCase()
-        .replace(/\s*[-\(].*$/, '')  // strip everything after - or (
-        .trim();
-      if (!seenBase[base]) {
-        seenBase[base] = true;
-        dedupedTracks.push(t);
-      }
+      const base = t.name.toLowerCase().replace(/\s*[-\(].*$/, '').trim();
+      if (!seenBase[base]) { seenBase[base] = true; dedupedTracks.push(t); }
     });
+
     const sizes = [2,4,8,16,32];
     const size = sizes.find(function(s) { return s >= Math.min(dedupedTracks.length, 32); }) || 32;
     const songs = dedupedTracks.slice(0, size).map(function(t, i) { return { id: i, name: t.name }; });
     while (songs.length < size) songs.push({ id: songs.length, name: 'BYE', bye: true });
+
+    // Pre-fetch iTunes catalog for this artist in background
+    setStatus('Loading previews...');
+    await prefetchItunesCatalog(name);
+
     setStatus('');
     startBracket(songs);
   } catch(e) {
     setError('Could not load tracks: ' + e.message);
     setStatus('');
+  }
+}
+
+async function prefetchItunesCatalog(artist) {
+  try {
+    // Step 1: get iTunes artist ID
+    const q = encodeURIComponent(artist);
+    const r1 = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=musicArtist&limit=5');
+    const d1 = await r1.json();
+    const artistMatch = d1.results && d1.results.find(function(r) {
+      return r.artistName && r.artistName.toLowerCase() === artist.toLowerCase();
+    }) || (d1.results && d1.results[0]);
+    if (!artistMatch || !artistMatch.artistId) return;
+
+    // Step 2: fetch all tracks for that artist ID
+    const r2 = await fetch('https://itunes.apple.com/lookup?id=' + artistMatch.artistId + '&entity=song&limit=200');
+    const d2 = await r2.json();
+    const results = d2.results || [];
+
+    // Step 3: build preview map keyed by normalized track name
+    const badWords = ['live', 'acoustic', 'demo', 'karaoke', 'instrumental'];
+    results.forEach(function(r) {
+      if (!r.previewUrl || !r.trackName) return;
+      const key = r.trackName.toLowerCase().replace(/\s*[-\(].*$/, '').trim();
+      // Only store if not already cached with a clean version
+      if (!itunesCache[key] || badWords.some(function(w) {
+        return (itunesCache[key + '__name'] || '').indexOf(w) !== -1;
+      })) {
+        const trackLower = r.trackName.toLowerCase();
+        const isBad = badWords.some(function(w) { return trackLower.indexOf(w) !== -1 || (r.collectionName || '').toLowerCase().indexOf(w) !== -1; });
+        if (!itunesCache[key] || !isBad) {
+          itunesCache[key] = r.previewUrl;
+          itunesCache[key + '__name'] = r.trackName.toLowerCase();
+        }
+      }
+    });
+  } catch(e) {
+    // Silent fail — previews just won't work
   }
 }
 
@@ -279,50 +320,10 @@ async function togglePreview(e, songName, artist, btn) {
   }
   currentPlayBtn = btn;
   btn.innerHTML = '...';
-  const cacheKey = songName + '||' + artist;
-  let previewUrl = itunesCache[cacheKey];
-  if (previewUrl === undefined) {
-    try {
-      const badWords = ['live', 'acoustic', 'demo', 'karaoke', 'instrumental'];
-      function isBadVersion(r) {
-        const t = (r.trackName || '').toLowerCase();
-        const a = (r.collectionName || '').toLowerCase();
-        return badWords.some(function(w) { return t.indexOf(w) !== -1 || a.indexOf(w) !== -1; });
-      }
-      function artistMatches(r) {
-        if (!r.artistName) return false;
-        const rA = r.artistName.toLowerCase();
-        const aL = artist.toLowerCase();
-        return rA === aL || rA.indexOf(aL) !== -1 || aL.indexOf(rA) !== -1;
-      }
-      function trackMatches(r) {
-        if (!r.trackName) return false;
-        const rT = r.trackName.toLowerCase().replace(/\s*[\(\-].*$/, '').trim();
-        const sL = songName.toLowerCase().replace(/\s*[\(\-].*$/, '').trim();
-        return rT === sL || rT.indexOf(sL) !== -1 || sL.indexOf(rT) !== -1;
-      }
-      // Search with song + artist
-      const q1 = encodeURIComponent(songName + ' ' + artist);
-      const res1 = await fetch('https://itunes.apple.com/search?term=' + q1 + '&entity=song&limit=25&media=music');
-      const d1 = await res1.json();
-      let results = d1.results || [];
-      // If no correct artist found, broaden to song name only with 50 results
-      if (!results.some(artistMatches)) {
-        const q2 = encodeURIComponent(songName);
-        const res2 = await fetch('https://itunes.apple.com/search?term=' + q2 + '&entity=song&limit=50&media=music');
-        const d2 = await res2.json();
-        results = d2.results || [];
-      }
-      // Priority: artist+track+clean > artist+track > artist+clean > artist only
-      let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r) && !isBadVersion(r); });
-      if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r); });
-      if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && !isBadVersion(r); });
-      // No fallback to wrong track — ∅ is better than the wrong song
-      console.log('Requested:', songName, '| Artist matches:', results.filter(artistMatches).map(function(r) { return r.trackName; }));
-      previewUrl = match ? match.previewUrl : null;
-      itunesCache[cacheKey] = previewUrl;
-    } catch(err) { previewUrl = null; }
-  }
+  // Look up from pre-fetched catalog by normalized track name
+  const normalizedSong = songName.toLowerCase().replace(/\s*[-\(].*$/, '').trim();
+  let previewUrl = itunesCache.hasOwnProperty(normalizedSong) ? itunesCache[normalizedSong] : undefined;
+  if (previewUrl === undefined) previewUrl = null;
   if (!previewUrl) {
     btn.innerHTML = '&#8709;';
     btn.title = 'No preview available';
@@ -436,6 +437,7 @@ function resetApp() {
   bracket = []; artistName = '';
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
   currentPlayBtn = null;
+  Object.keys(itunesCache).forEach(function(k) { delete itunesCache[k]; });
   document.getElementById('bracket-screen').classList.remove('active');
   document.getElementById('setup-screen').classList.add('active');
   document.getElementById('artist-results').innerHTML = '';

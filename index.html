@@ -132,17 +132,45 @@ async function searchArtists() {
 function renderArtists(artists) {
   const c = document.getElementById('artist-results');
   if (!artists.length) { c.innerHTML = '<p style="color:var(--muted);font-size:14px;">No artists found.</p>'; return; }
-  c.innerHTML = artists.map(function(a) {
+  c.innerHTML = '';
+  artists.forEach(function(a) {
     const imgArr = Array.isArray(a.image) ? a.image : [];
     const imgObj = imgArr.find(function(i) { return i.size === 'medium'; }) || imgArr[0];
     const imgUrl = imgObj ? imgObj['#text'] : '';
     const listeners = a.listeners ? parseInt(a.listeners).toLocaleString() + ' listeners' : '';
     const initial = a.name ? a.name[0].toUpperCase() : '?';
-    const imgHtml = imgUrl
-      ? '<img class="artist-img" src="' + imgUrl + '" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt=""><div class="artist-initials" style="display:none">' + initial + '</div>'
-      : '<div class="artist-initials">' + initial + '</div>';
-    return '<div class="artist-card" onclick="selectArtist('' + esc(a.name) + '')">' + imgHtml + '<div><div class="artist-name">' + esc(a.name) + '</div><div class="artist-listeners">' + listeners + '</div></div></div>';
-  }).join('');
+    const card = document.createElement('div');
+    card.className = 'artist-card';
+    card.onclick = (function(name) { return function() { selectArtist(name); }; })(a.name);
+    if (imgUrl) {
+      const img = document.createElement('img');
+      img.className = 'artist-img';
+      img.src = imgUrl;
+      const fallback = document.createElement('div');
+      fallback.className = 'artist-initials';
+      fallback.style.display = 'none';
+      fallback.textContent = initial;
+      img.onerror = function() { img.style.display = 'none'; fallback.style.display = 'flex'; };
+      card.appendChild(img);
+      card.appendChild(fallback);
+    } else {
+      const initDiv = document.createElement('div');
+      initDiv.className = 'artist-initials';
+      initDiv.textContent = initial;
+      card.appendChild(initDiv);
+    }
+    const info = document.createElement('div');
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'artist-name';
+    nameDiv.textContent = a.name;
+    const lisDiv = document.createElement('div');
+    lisDiv.className = 'artist-listeners';
+    lisDiv.textContent = listeners;
+    info.appendChild(nameDiv);
+    info.appendChild(lisDiv);
+    card.appendChild(info);
+    c.appendChild(card);
+  });
 }
 
 async function selectArtist(name) {

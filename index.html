@@ -290,7 +290,7 @@ async function togglePreview(e, songName, artist, btn) {
       let results = data1.results || [];
       const artistLower = artist.toLowerCase();
       const songLower = songName.toLowerCase();
-      const dupeWords = ['live', 'acoustic', 'demo', 'remix', 'instrumental', 'cover', 'karaoke', 'radio edit', 'extended', 'remaster', 'session', 'version', 'edit', 'mix'];
+      const dupeWords = ['live', 'acoustic', 'demo', 'karaoke', 'instrumental'];
       function isCleanVersion(r) {
         const trackLower = (r.trackName || '').toLowerCase();
         const albumLower = (r.collectionName || '').toLowerCase();

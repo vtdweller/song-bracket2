@@ -368,7 +368,7 @@
 
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -519,17 +519,30 @@ async function selectArtist(id, name) {
     const tracks = [];
     for (const album of albums) {
       try {
-        const r2 = await fetch('https://api.spotify.com/v1/albums/' + album.id + '?market=US', {
+        const r2 = await fetch('https://api.spotify.com/v1/albums/' + album.id + '/tracks?market=US', {
           headers: { Authorization: 'Bearer ' + accessToken },
           cache: 'no-store'
         });
         if (!r2.ok) continue;
         const d2 = await r2.json();
-        for (const t of (d2.tracks?.items || [])) {
-          const key = t.name.toLowerCase().replace(/\s*[\(\[].*/, '').trim();
-          if (!seen.has(key)) {
-            seen.add(key);
-            tracks.push({ name: t.name, popularity: d2.popularity || 0, preview: t.preview_url || null });
+        const trackIds = (d2.items || []).map(t => t.id).filter(Boolean);
+        if (!trackIds.length) continue;
+        // Fetch full track objects in batches of 50 to get preview_url and popularity
+        for (let i = 0; i < trackIds.length; i += 50) {
+          const batch = trackIds.slice(i, i + 50).join(',');
+          const r3 = await fetch('https://api.spotify.com/v1/tracks?ids=' + batch + '&market=US', {
+            headers: { Authorization: 'Bearer ' + accessToken },
+            cache: 'no-store'
+          });
+          if (!r3.ok) continue;
+          const d3 = await r3.json();
+          for (const t of (d3.tracks || [])) {
+            if (!t) continue;
+            const key = t.name.toLowerCase().replace(/\s*[\(\[].*/, '').trim();
+            if (!seen.has(key)) {
+              seen.add(key);
+              tracks.push({ name: t.name, popularity: t.popularity || 0, preview: t.preview_url || null });
+            }
           }
         }
       } catch(e) { continue; }

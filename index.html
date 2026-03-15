@@ -346,7 +346,7 @@
 
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -491,34 +491,36 @@ async function selectArtist(id, name) {
       .sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''))
       .slice(0, 8);
 
-    // Fetch tracks for each album individually
+    // Fetch full track objects (with popularity) for each album individually
     setStatus('Loading tracks...');
     const seen = new Set();
     const tracks = [];
     for (const album of albums) {
       try {
-        const r2 = await fetch('https://api.spotify.com/v1/albums/' + album.id + '/tracks?market=US', {
+        const r2 = await fetch('https://api.spotify.com/v1/albums/' + album.id + '?market=US', {
           headers: { Authorization: 'Bearer ' + accessToken },
           cache: 'no-store'
         });
         if (!r2.ok) continue;
         const d2 = await r2.json();
-        for (const t of (d2.items || [])) {
+        for (const t of (d2.tracks?.items || [])) {
           const key = t.name.toLowerCase().replace(/\s*[\(\[].*/, '').trim();
           if (!seen.has(key)) {
             seen.add(key);
-            tracks.push(t.name);
+            tracks.push({ name: t.name, popularity: d2.popularity || 0 });
           }
         }
       } catch(e) { continue; }
-      if (tracks.length >= 32) break;
     }
+
+    // Sort by popularity descending so best songs get top seeds
+    tracks.sort((a, b) => b.popularity - a.popularity);
 
     if (tracks.length < 2) { setError('Not enough tracks found. Try another artist.'); setStatus(''); return; }
 
     const sizes = [2,4,8,16,32];
     const size = sizes.find(s => s >= Math.min(tracks.length, 32)) || 32;
-    const songs = tracks.slice(0, size).map((name, i) => ({ id: i, name }));
+    const songs = tracks.slice(0, size).map((t, i) => ({ id: i, name: t.name }));
     while (songs.length < size) songs.push({ id: songs.length, name: 'BYE', bye: true });
 
     setStatus('');

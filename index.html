@@ -318,6 +318,8 @@ async function togglePreview(e, songName, artist, btn) {
       if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && trackMatches(r); });
       if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r) && !isBadVersion(r); });
       if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r); });
+      console.log('Song:', songName, '| Match:', match ? (match.artistName + ' - ' + match.trackName) : 'none');
+      console.log('All artist matches:', results.filter(artistMatches).map(function(r) { return r.trackName; }));
       previewUrl = match ? match.previewUrl : null;
       itunesCache[cacheKey] = previewUrl;
     } catch(err) { previewUrl = null; }

@@ -264,7 +264,7 @@
   .song-slot .seed {
     font-size: 9px;
     color: var(--hint);
-    margin-right: 7px;
+    margin-right: 5px;
     flex-shrink: 0;
     width: 14px;
     text-align: right;
@@ -273,9 +273,31 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 116px;
+    max-width: 88px;
     display: inline-block;
+    flex: 1;
   }
+  .play-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 0.5px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-left: 5px;
+    transition: background 0.12s, border-color 0.12s;
+    font-size: 8px;
+    padding: 0;
+  }
+  .play-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
+  .play-btn.playing { background: var(--green-dim); border-color: rgba(29,185,84,0.5); color: var(--green); }
+  .song-slot.winner .play-btn { border-color: rgba(29,185,84,0.4); color: #1DB954; }
+  .no-preview { width: 20px; flex-shrink: 0; margin-left: 5px; }
 
   /* connector lines between rounds */
   .connector-col {
@@ -346,7 +368,7 @@
 
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -507,7 +529,7 @@ async function selectArtist(id, name) {
           const key = t.name.toLowerCase().replace(/\s*[\(\[].*/, '').trim();
           if (!seen.has(key)) {
             seen.add(key);
-            tracks.push({ name: t.name, popularity: d2.popularity || 0 });
+            tracks.push({ name: t.name, popularity: d2.popularity || 0, preview: t.preview_url || null });
           }
         }
       } catch(e) { continue; }
@@ -520,7 +542,7 @@ async function selectArtist(id, name) {
 
     const sizes = [2,4,8,16,32];
     const size = sizes.find(s => s >= Math.min(tracks.length, 32)) || 32;
-    const songs = tracks.slice(0, size).map((t, i) => ({ id: i, name: t.name }));
+    const songs = tracks.slice(0, size).map((t, i) => ({ id: i, name: t.name, preview: t.preview || null }));
     while (songs.length < size) songs.push({ id: songs.length, name: 'BYE', bye: true });
 
     setStatus('');
@@ -606,6 +628,31 @@ function pickWinner(roundIdx, matchIdx, slotIdx) {
   renderBracket();
 }
 
+let currentAudio = null;
+let currentPlayBtn = null;
+
+function togglePreview(e, url, btn) {
+  e.stopPropagation();
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+    if (currentPlayBtn) { currentPlayBtn.classList.remove('playing'); currentPlayBtn.innerHTML = '&#9654;'; }
+    if (currentPlayBtn === btn) { currentPlayBtn = null; return; }
+  }
+  currentPlayBtn = btn;
+  btn.classList.add('playing');
+  btn.innerHTML = '&#9646;&#9646;';
+  currentAudio = new Audio(url);
+  currentAudio.volume = 0.7;
+  currentAudio.play();
+  currentAudio.onended = () => {
+    btn.classList.remove('playing');
+    btn.innerHTML = '&#9654;';
+    currentAudio = null;
+    currentPlayBtn = null;
+  };
+}
+
 function renderBracket() {
   const wrap = document.getElementById('bracket-wrap');
   const champArea = document.getElementById('champion-area');
@@ -667,7 +714,10 @@ function renderBracket() {
             slot.style.cursor = 'pointer';
             slot.onclick = () => pickWinner(r, mi, si);
           }
-          slot.innerHTML = `<span class="seed">${song.id + 1}</span><span class="song-name" title="${esc(song.name)}">${esc(song.name)}</span>`;
+          const previewBtn = song.preview
+            ? `<button class="play-btn" onclick="togglePreview(event,'${song.preview}',this)" title="Preview">&#9654;</button>`
+            : `<span class="no-preview"></span>`;
+          slot.innerHTML = `<span class="seed">${song.id + 1}</span><span class="song-name" title="${esc(song.name)}">${esc(song.name)}</span>${previewBtn}`;
         }
         block.appendChild(slot);
       });

@@ -299,42 +299,6 @@
   .song-slot.winner .play-btn { border-color: rgba(29,185,84,0.4); color: #1DB954; }
   .no-preview { width: 20px; flex-shrink: 0; margin-left: 5px; }
 
-  #spotify-embed {
-    position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    width: 300px;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-    z-index: 1000;
-    display: none;
-  }
-  #spotify-embed iframe {
-    display: block;
-    width: 300px;
-    height: 80px;
-    border: none;
-  }
-  #embed-close {
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    background: rgba(0,0,0,0.5);
-    border: none;
-    color: #fff;
-    font-size: 14px;
-    cursor: pointer;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2;
-    line-height: 1;
-    padding: 0;
-  }
 
   /* connector lines between rounds */
   .connector-col {
@@ -403,14 +367,9 @@
   <div id="bracket-wrap" class="bracket-wrap"></div>
 </div>
 
-<div id="spotify-embed">
-  <button id="embed-close" onclick="closeEmbed()">&#x2715;</button>
-  <iframe id="embed-iframe" src="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-</div>
-
 <script>
 // ── CONFIG ─────────────────────────────────────────────
-const CLIENT_ID = '7a28ab4e32be4ef49e7f61be087d7052';
+const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 // ───────────────────────────────────────────────────────
 
@@ -670,31 +629,57 @@ function pickWinner(roundIdx, matchIdx, slotIdx) {
   renderBracket();
 }
 
+let currentAudio = null;
 let currentPlayBtn = null;
+const itunesCache = {};
 
-function togglePreview(e, trackId, btn) {
+async function togglePreview(e, trackId, songName, artistName, btn) {
   e.stopPropagation();
-  const embedDiv = document.getElementById('spotify-embed');
-  const iframe = document.getElementById('embed-iframe');
-  if (currentPlayBtn === btn) {
-    closeEmbed();
+  // Stop current audio
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+    if (currentPlayBtn) { currentPlayBtn.classList.remove('playing'); currentPlayBtn.innerHTML = '&#9654;'; }
+    if (currentPlayBtn === btn) { currentPlayBtn = null; return; }
+  }
+  currentPlayBtn = btn;
+  btn.innerHTML = '...';
+
+  // Check cache first
+  const cacheKey = trackId;
+  let previewUrl = itunesCache[cacheKey];
+
+  if (!previewUrl) {
+    try {
+      const q = encodeURIComponent(songName + ' ' + artistName);
+      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=3&media=music');
+      const data = await res.json();
+      const match = data.results && data.results.find(r => r.previewUrl);
+      previewUrl = match ? match.previewUrl : null;
+      itunesCache[cacheKey] = previewUrl || '';
+    } catch(e) {
+      previewUrl = null;
+    }
+  }
+
+  if (!previewUrl) {
+    btn.innerHTML = '&#8709;';
+    btn.title = 'No preview available';
+    currentPlayBtn = null;
     return;
   }
-  if (currentPlayBtn) { currentPlayBtn.classList.remove('playing'); currentPlayBtn.innerHTML = '&#9654;'; }
-  currentPlayBtn = btn;
+
   btn.classList.add('playing');
   btn.innerHTML = '&#9646;&#9646;';
-  iframe.src = 'https://open.spotify.com/embed/track/' + trackId + '?utm_source=generator&theme=0&autoplay=1';
-  embedDiv.style.display = 'block';
-}
-
-function closeEmbed() {
-  const embedDiv = document.getElementById('spotify-embed');
-  const iframe = document.getElementById('embed-iframe');
-  embedDiv.style.display = 'none';
-  iframe.src = '';
-  if (currentPlayBtn) { currentPlayBtn.classList.remove('playing'); currentPlayBtn.innerHTML = '&#9654;'; }
-  currentPlayBtn = null;
+  currentAudio = new Audio(previewUrl);
+  currentAudio.volume = 0.8;
+  currentAudio.play();
+  currentAudio.onended = () => {
+    btn.classList.remove('playing');
+    btn.innerHTML = '&#9654;';
+    currentAudio = null;
+    currentPlayBtn = null;
+  };
 }
 
 function renderBracket() {
@@ -758,9 +743,7 @@ function renderBracket() {
             slot.style.cursor = 'pointer';
             slot.onclick = () => pickWinner(r, mi, si);
           }
-          const previewBtn = song.trackId
-            ? `<button class="play-btn" onclick="togglePreview(event,'${song.trackId}',this)" title="Preview">&#9654;</button>`
-            : `<span class="no-preview"></span>`;
+          const previewBtn = `<button class="play-btn" onclick="togglePreview(event,'${song.trackId}','${esc(song.name)}','${esc(artistName)}',this)" title="Preview">&#9654;</button>`;
           slot.innerHTML = `<span class="seed">${song.id + 1}</span><span class="song-name" title="${esc(song.name)}">${esc(song.name)}</span>${previewBtn}`;
         }
         block.appendChild(slot);

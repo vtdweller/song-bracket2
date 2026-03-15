@@ -275,7 +275,7 @@ async function selectArtist(name) {
     dedupedTracks.sort(function(a, b) {
       return (parseInt(b.listeners) || 0) - (parseInt(a.listeners) || 0);
     });
-    console.log('Top 35 after sort:', dedupedTracks.slice(0, 35).map(function(t) { return t.name + ' (' + t.listeners + ')'; }));
+
 
     const sizes = [2,4,8,16,32];
     const size = sizes.find(function(s) { return s >= Math.min(dedupedTracks.length, 32); }) || 32;

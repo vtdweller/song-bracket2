@@ -184,9 +184,21 @@ async function selectArtist(name) {
     if (data.error) throw new Error(data.message);
     const tracks = (data.toptracks && data.toptracks.track) || [];
     if (tracks.length < 2) { setError('Not enough tracks found. Try another artist.'); setStatus(''); return; }
+    // Deduplicate: strip suffixes like "- Single Version", "(Live)", etc. and keep first occurrence
+    const seenBase = {};
+    const dedupedTracks = [];
+    tracks.forEach(function(t) {
+      const base = t.name.toLowerCase()
+        .replace(/\s*[-\(].*$/, '')  // strip everything after - or (
+        .trim();
+      if (!seenBase[base]) {
+        seenBase[base] = true;
+        dedupedTracks.push(t);
+      }
+    });
     const sizes = [2,4,8,16,32];
-    const size = sizes.find(function(s) { return s >= Math.min(tracks.length, 32); }) || 32;
-    const songs = tracks.slice(0, size).map(function(t, i) { return { id: i, name: t.name }; });
+    const size = sizes.find(function(s) { return s >= Math.min(dedupedTracks.length, 32); }) || 32;
+    const songs = dedupedTracks.slice(0, size).map(function(t, i) { return { id: i, name: t.name }; });
     while (songs.length < size) songs.push({ id: songs.length, name: 'BYE', bye: true });
     setStatus('');
     startBracket(songs);
@@ -272,9 +284,32 @@ async function togglePreview(e, songName, artist, btn) {
   if (previewUrl === undefined) {
     try {
       const q = encodeURIComponent(songName + ' ' + artist);
-      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=5&media=music');
+      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=10&media=music');
       const data = await res.json();
-      const match = data.results && data.results.find(function(r) { return r.previewUrl; });
+      const results = data.results || [];
+      const artistLower = artist.toLowerCase();
+      const songLower = songName.toLowerCase();
+      const dupeWords = ['live', 'acoustic', 'demo', 'remix', 'instrumental', 'cover', 'karaoke', 'radio edit', 'extended', 'remaster', 'session', 'version', 'edit', 'mix'];
+      function isCleanVersion(r) {
+        const trackLower = (r.trackName || '').toLowerCase();
+        const albumLower = (r.collectionName || '').toLowerCase();
+        return !dupeWords.some(function(w) {
+          return trackLower.indexOf(w) !== -1 || albumLower.indexOf(w) !== -1;
+        });
+      }
+      function artistMatches(r) {
+        if (!r.artistName) return false;
+        const rArtist = r.artistName.toLowerCase();
+        return rArtist === artistLower || rArtist.indexOf(artistLower) !== -1 || artistLower.indexOf(rArtist) !== -1;
+      }
+      // Best: correct artist + clean version
+      let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && isCleanVersion(r); });
+      // OK: correct artist, any version
+      if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r); });
+      // Fallback: clean version any artist
+      if (!match) match = results.find(function(r) { return r.previewUrl && isCleanVersion(r); });
+      // Last resort: anything
+      if (!match) match = results.find(function(r) { return r.previewUrl; });
       previewUrl = match ? match.previewUrl : null;
       itunesCache[cacheKey] = previewUrl;
     } catch(err) { previewUrl = null; }

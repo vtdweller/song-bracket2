@@ -279,8 +279,10 @@ async function togglePreview(e, songName, artist, btn) {
   }
   currentPlayBtn = btn;
   btn.innerHTML = '...';
+  console.log('Preview requested:', songName, 'by', artist);
   const cacheKey = songName + '||' + artist;
   let previewUrl = itunesCache[cacheKey];
+  console.log('Cache key:', cacheKey, '| Cached value:', previewUrl);
   if (previewUrl === undefined) {
     try {
       const q = encodeURIComponent(songName + ' ' + artist);
@@ -306,10 +308,7 @@ async function togglePreview(e, songName, artist, btn) {
       let match = results.find(function(r) { return r.previewUrl && artistMatches(r) && isCleanVersion(r); });
       // OK: correct artist, any version
       if (!match) match = results.find(function(r) { return r.previewUrl && artistMatches(r); });
-      // Fallback: clean version any artist
-      if (!match) match = results.find(function(r) { return r.previewUrl && isCleanVersion(r); });
-      // Last resort: anything
-      if (!match) match = results.find(function(r) { return r.previewUrl; });
+      // Do NOT fall back to wrong artist — show no preview instead
       previewUrl = match ? match.previewUrl : null;
       itunesCache[cacheKey] = previewUrl;
     } catch(err) { previewUrl = null; }
